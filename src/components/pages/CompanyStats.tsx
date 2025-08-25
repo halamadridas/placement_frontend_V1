@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
+// @ts-ignore
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import {
@@ -54,6 +55,7 @@ import {
   FileText,
 } from "lucide-react";
 import axios from "axios";
+import type { Student } from "@/lib/types";
 
 ChartJS.register(
   CategoryScale,
@@ -99,7 +101,7 @@ const getStatusColor = (status: string) => {
   }
 };
 
-const getVerificationIcon = (isVerified) => {
+const getVerificationIcon = (isVerified?: boolean) => {
   return isVerified ? (
     <CheckCircle className="h-4 w-4 text-green-500" />
   ) : (
@@ -148,14 +150,14 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   // Get unique values for filters
   const { companies, courses, batches, employmentStatuses } = useMemo(() => {
     const companies = [
-      ...new Set(students.filter((s) => s.company).map((s) => s.company)),
+      ...new Set(students.filter((s: any) => s.company).map((s: any) => s.company)),
     ].sort();
-    const courses = [...new Set(students.map((s) => s.course))].sort();
-    const batches = [...new Set(students.map((s) => s.batchStartYear))].sort(
+    const courses = [...new Set(students.filter((s: any) => s.course).map((s: any) => s.course))].sort();
+    const batches = [...new Set(students.filter((s: any) => s.batchStartYear).map((s: any) => s.batchStartYear))].sort(
       (a, b) => b - a
     );
     const statuses = [
-      ...new Set(students.map((s) => s.employmentStatus)),
+      ...new Set(students.filter((s: any) => s.employmentStatus).map((s: any) => s.employmentStatus)),
     ].filter(Boolean);
     return { companies, courses, batches, employmentStatuses: statuses };
   }, [students]);
@@ -163,30 +165,30 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   // Filter and sort students
   const filteredAndSortedStudents = useMemo(() => {
     let filtered = students.filter((student) => {
-      if (selectedCompany !== "all" && student.company !== selectedCompany)
+      if (selectedCompany !== "all" && (student as any).company !== selectedCompany)
         return false;
-      if (selectedCourse !== "all" && student.course !== selectedCourse)
+      if (selectedCourse !== "all" && (student as any).course !== selectedCourse)
         return false;
       if (
         selectedBatch !== "all" &&
-        student.batchStartYear !== parseInt(selectedBatch)
+        (student as any).batchStartYear !== parseInt(selectedBatch)
       )
         return false;
       if (
         selectedStatus !== "all" &&
-        normalizeEmployment(student.employmentStatus) !== selectedStatus
+        normalizeEmployment((student as any).employmentStatus) !== selectedStatus
       )
         return false;
       if (selectedVerification !== "all") {
-        if (selectedVerification === "verified" && !student.isVerified)
+        if (selectedVerification === "verified" && !(student as any).isVerified)
           return false;
-        if (selectedVerification === "unverified" && student.isVerified)
+        if (selectedVerification === "unverified" && (student as any).isVerified)
           return false;
       }
       if (
         searchTerm &&
-        !student.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !student.registrationNumber
+        !(student as any).name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        !(student as any).registrationNumber
           .toLowerCase()
           .includes(searchTerm.toLowerCase())
       )
@@ -205,8 +207,8 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
       }
 
       if (typeof aValue === "string") {
-        aValue = aValue.toLowerCase();
-        bValue = bValue.toLowerCase();
+        aValue = (aValue as any).toLowerCase();
+        bValue = (bValue as string).toLowerCase();
       }
 
       if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
@@ -241,37 +243,41 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   // Calculate key metrics
   const metrics = useMemo(() => {
     const total = filteredAndSortedStudents.length;
-    const placed = filteredAndSortedStudents.filter((s) => s.isPlaced).length;
+    const placed = filteredAndSortedStudents.filter((s: any) => s.isPlaced).length;
     const verified = filteredAndSortedStudents.filter(
-      (s) => s.isVerified
+      (s: any) => s.isVerified
     ).length;
     const placementRate = total > 0 ? ((placed / total) * 100).toFixed(1) : 0;
 
     const placedStudents = filteredAndSortedStudents.filter(
-      (s) => s.isPlaced && s.package
+      (s: any) => s.isPlaced && s.package
+
     );
     const avgPackage =
       placedStudents.length > 0
         ? (
-            placedStudents.reduce((sum, s) => sum + (s.package || 0), 0) /
+            placedStudents.reduce((sum, s: any) => sum + (s.package || 0), 0) /
+
             placedStudents.length
           ).toFixed(2)
         : 0;
 
-    const ratedStudents = filteredAndSortedStudents.filter(
-      (s) => s.recruiterRating
+      const ratedStudents = filteredAndSortedStudents.filter(
+      (s :any) => s.recruiterRating && s.isPlaced
+
     );
     const avgRating =
       ratedStudents.length > 0
         ? (
-            ratedStudents.reduce((sum, s) => sum + s.recruiterRating, 0) /
+            ratedStudents.reduce((sum, s: any) => sum + s.recruiterRating, 0) /
+
             ratedStudents.length
           ).toFixed(1)
         : 0;
 
     const highestPackage =
       placedStudents.length > 0
-        ? Math.max(...placedStudents.map((s) => s.package || 0)).toFixed(2)
+        ? Math.max(...placedStudents.map((s: any) => s.package || 0)).toFixed(2)
         : 0;
 
     return {
@@ -287,10 +293,10 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
 
   // Company-wise statistics
   const companyStats = useMemo(() => {
-    const stats = {};
+    const stats: any = {};
     filteredAndSortedStudents
-      .filter((s) => s.isPlaced && s.company)
-      .forEach((s) => {
+      .filter((s:any) => s.isPlaced && s.company)
+      .forEach((s: any) => {
         if (!stats[s.company]) {
           stats[s.company] = {
             count: 0,
@@ -312,7 +318,8 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
       });
 
     return Object.entries(stats)
-      .map(([company, data]) => ({
+      .map(([company, data]: any) => ({
+
         company,
         count: data.count,
         avgPackage:
@@ -332,15 +339,16 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   // Course-wise statistics
   const courseStats = useMemo(() => {
     const stats = {};
-    filteredAndSortedStudents.forEach((s) => {
-      if (!stats[s.course]) {
-        stats[s.course] = { total: 0, placed: 0 };
+    filteredAndSortedStudents.forEach((s: any) => {
+      if (!stats[s.course as keyof typeof stats]) {
+        (stats as Record<string, { total: number; placed: number }>)[s.course] = { total: 0, placed: 0 };
       }
-      stats[s.course].total += 1;
-      if (s.isPlaced) stats[s.course].placed += 1;
+      (stats[s.course as keyof typeof stats] as { total: number; placed: number }).total += 1;
+      if (s.isPlaced) (stats[s.course as keyof typeof stats] as { total: number; placed: number }).placed += 1;
     });
 
-    return Object.entries(stats).map(([course, data]) => ({
+    return Object.entries(stats).map(([course, data]: any) => ({
+
       course,
       total: data.total,
       placed: data.placed,
@@ -351,7 +359,8 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   // Employment status distribution
   const employmentStats = useMemo(() => {
     const stats = { joined: 0, left: 0, not_joined: 0, pending: 0, unknown: 0 };
-    filteredAndSortedStudents.forEach((s) => {
+    filteredAndSortedStudents.forEach((s: any) => {
+
       const status = normalizeEmployment(s.employmentStatus);
       stats[status] = (stats[status] || 0) + 1;
     });
@@ -360,8 +369,8 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
 
   // Batch-wise placement trends
   const batchStats = useMemo(() => {
-    const stats = {};
-    filteredAndSortedStudents.forEach((s) => {
+    const stats: any = {};
+    filteredAndSortedStudents.forEach((s: any) => {
       const year = s.batchEndYear || s.batchStartYear + 4;
       if (!stats[year]) {
         stats[year] = { total: 0, placed: 0 };
@@ -371,7 +380,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
     });
 
     return Object.entries(stats)
-      .map(([year, data]) => ({
+      .map(([year, data]: any) => ({
         year: parseInt(year),
         total: data.total,
         placed: data.placed,
@@ -458,18 +467,19 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
     datasets: [
       {
         data: [
-          filteredAndSortedStudents.filter((s) => s.package && s.package < 3)
+          filteredAndSortedStudents.filter((s : any) => s.package && s.package < 3)
+
             .length,
           filteredAndSortedStudents.filter(
-            (s) => s.package && s.package >= 3 && s.package < 5
+            (s : any) => s.package && s.package >= 3 && s.package < 5
           ).length,
           filteredAndSortedStudents.filter(
-            (s) => s.package && s.package >= 5 && s.package < 8
+            (s : any) => s.package && s.package >= 5 && s.package < 8
           ).length,
           filteredAndSortedStudents.filter(
-            (s) => s.package && s.package >= 8 && s.package < 12
+            (s : any) => s.package && s.package >= 8 && s.package < 12
           ).length,
-          filteredAndSortedStudents.filter((s) => s.package && s.package >= 12)
+          filteredAndSortedStudents.filter((s : any) => s.package && s.package >= 12)
             .length,
         ],
         backgroundColor: [
@@ -503,7 +513,8 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
     },
   };
 
-  const handleSort = (field) => {
+  const handleSort = (field : any) => {
+
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
@@ -523,7 +534,8 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   };
 
   const handleExportExcel = () => {
-    const exportData = filteredAndSortedStudents.map((s) => ({
+    const exportData = filteredAndSortedStudents.map((s: any) => ({
+
       Name: s.name,
       "Registration Number": s.registrationNumber,
       Course: s.course,
@@ -866,7 +878,15 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              <Bar data={companyChartData} options={chartOptions} />
+              <Bar data={companyChartData} options={{
+                ...chartOptions,
+                plugins: {
+                  ...chartOptions.plugins,
+                  legend: {
+                    position: 'top' as const
+                  }
+                }
+              }} />
             </div>
           </CardContent>
         </Card>
@@ -890,7 +910,15 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              <Bar data={coursePlacementData} options={chartOptions} />
+              <Bar data={coursePlacementData} options={{
+                ...chartOptions,
+                plugins: {
+                  ...chartOptions.plugins,
+                  legend: {
+                    position: 'top' as const
+                  }
+                }
+              }} />
             </div>
           </CardContent>
         </Card>
@@ -914,7 +942,15 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              <Line data={batchTrendData} options={chartOptions} />
+              <Line data={batchTrendData} options={{
+                ...chartOptions,
+                plugins: {
+                  ...chartOptions.plugins,
+                  legend: {
+                    position: 'top' as const
+                  }
+                }
+              }} />
             </div>
           </CardContent>
         </Card>
@@ -1096,7 +1132,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedStudents.map((student) => (
+                {paginatedStudents.map((student : any) => (
                   <TableRow key={student._id}>
                     <TableCell className="font-medium">
                       {student.name}
@@ -1280,7 +1316,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
             <div>
               <h4 className="font-semibold mb-3 text-green-600">Strengths</h4>
               <ul className="space-y-2 text-sm">
-                {parseFloat(metrics.placementRate) >= 70 && (
+                {parseFloat(String(metrics.placementRate)) >= 70 && (
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-green-500" />
                     Strong overall placement rate of {metrics.placementRate}%
@@ -1293,13 +1329,14 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
                     recruiting companies
                   </li>
                 )}
-                {parseFloat(metrics.avgPackage) >= 5 && (
+                {parseFloat(String(metrics.avgPackage)) >= 5 && (
+
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-green-500" />
                     Competitive average package of ₹{metrics.avgPackage} LPA
                   </li>
                 )}
-                {parseFloat(metrics.avgRating) >= 4 && (
+                {parseFloat(String(metrics.avgRating)) >= 4 && (
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-green-500" />
                     High employer satisfaction with average rating of{" "}
@@ -1314,7 +1351,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
                 Areas for Improvement
               </h4>
               <ul className="space-y-2 text-sm">
-                {parseFloat(metrics.placementRate) < 70 && (
+                {parseFloat(String(metrics.placementRate)) < 70 && (
                   <li className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-orange-500" />
                     Focus on improving placement rate (currently{" "}
@@ -1346,7 +1383,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
       </Card>
 
       {/* Print styles */}
-      <style jsx global>{`
+      <style>{`
         @media print {
           body {
             print-color-adjust: exact;
