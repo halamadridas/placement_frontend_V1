@@ -121,7 +121,7 @@ const PlacementAnalyticsDashboard = () => {
       setLoading(true);
       try {
         const response = await axios.get(
-          "http://localhost:5000/api/students?limit=all"
+          `${import.meta.env.VITE_API_URL}/api/students?limit=all`
         );
         if (response.data?.success && response.data?.students) {
           setStudents(response.data.students);
