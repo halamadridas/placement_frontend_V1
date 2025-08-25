@@ -55,7 +55,6 @@ import {
   FileText,
 } from "lucide-react";
 import axios from "axios";
-import type { Student } from "@/lib/types";
 
 ChartJS.register(
   CategoryScale,
@@ -207,7 +206,9 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
       }
 
       if (typeof aValue === "string") {
+        // @ts-ignore
         aValue = (aValue as any).toLowerCase();
+        // @ts-ignore
         bValue = (bValue as string).toLowerCase();
       }
 
