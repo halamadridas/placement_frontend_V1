@@ -805,16 +805,16 @@ export function RecruiterForm() {
           "Is Placed": student.isPlaced ? "Yes" : "No",
           "Is Verified": student.isVerified ? "Yes" : "No",
           "Recruiter Rating": student.recruiterRating || "Not rated",
-          "Recruiter Name": student?.recruiterName || "N/A",
-          "Recruiter Position": student?.recruiterPosition || "N/A",
-          "Recruiter Email": student?.recruiterEmail || "N/A",
+          "Recruiter Name": student.recruiterName  || "N/A",
+          "Recruiter Position": student.recruiterPosition || "N/A",
+          "Recruiter Email": student.recruiterEmail || "N/A",
           "Recruiter Feedback": student.recruiterFeedback || "N/A",
           "Student Feedback": student.studentFeedback || "N/A",
-          "Submitted Date": formatDate(student.submittedAt),
+          "Submitted Date": formatDate(student.submittedAt?.toString() || ''),
           "Verified Date": student.verifiedAt
-            ? formatDate(student.verifiedAt)
+            ? formatDate(student.verifiedAt?.toString() || '')
             : "Not verified",
-          "Last Updated": formatDate(student.updatedAt),
+          "Last Updated": formatDate(student.updatedAt?.toString() || ''),
         };
       });
 
@@ -1077,21 +1077,24 @@ export function RecruiterForm() {
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Submitted:</span>
                   <span className="text-gray-600">
-                    {formatDate(student.submittedAt)}
+                    {formatDate(student.submittedAt?.toString() || '')}
+
                   </span>
                 </div>
                 {student.isVerified && student.verifiedAt && (
                   <div className="flex justify-between items-center">
                     <span className="font-medium">Verified:</span>
                     <span className="text-gray-600">
-                      {formatDate(student.verifiedAt)}
+                      {formatDate(student.verifiedAt?.toString() || '')}
+
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Last Updated:</span>
-                  <span className="text-gray-600">
-                    {formatDate(student.updatedAt)}
+                    <span className="text-gray-600">
+                    {formatDate(student.updatedAt?.toString() || '')}
+
                   </span>
                 </div>
               </div>
@@ -1607,17 +1610,18 @@ export function RecruiterForm() {
                               {student.verifiedAt && (
                                 <div className="flex gap-1 items-center justify-center px-2 font-semibold text-neutral-800 bg-neutral-200 rounded-full text-xs py-1">
                                   <Timer className="size-3" />
-                                  {formatDate(student.verifiedAt)}
+                                  {formatDate(student.verifiedAt?.toString() || '')}
+
                                 </div>
                               )}
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="text-xs text-gray-500">
-                              <div>📅 {formatDate(student.submittedAt)}</div>
+                              <div>📅 {formatDate(student.submittedAt?.toString() || '')}</div>
                               {student.updatedAt !== student.submittedAt && (
                                 <div className="mt-1">
-                                  🔄 {formatDate(student.updatedAt)}
+                                  🔄 {formatDate(student.updatedAt?.toString() || '')}
                                 </div>
                               )}
                             </div>

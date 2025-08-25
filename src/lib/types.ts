@@ -16,6 +16,10 @@ export interface Student {
   verifiedAt?: Date;
   submittedAt: Date;
   updatedAt: Date;
+  recruiterName?: string;
+  recruiterPosition?: string;
+  recruiterEmail?: string;
+
 }
 
 export interface Company {
