@@ -67,7 +67,7 @@ ChartJS.register(
   PointElement
 );
 
-const normalizeEmployment = (raw) => {
+const normalizeEmployment = (raw: string) => {
   if (!raw) return "unknown";
   const s = String(raw).toLowerCase().trim();
   if (["joined", "working", "still_working", "active"].includes(s))
@@ -77,8 +77,14 @@ const normalizeEmployment = (raw) => {
   if (["pending"].includes(s)) return "pending";
   return "unknown";
 };
+type Page = "home" | "submit" | "verify" | "stats";
 
-const getStatusColor = (status) => {
+interface CompanyStatsProps {
+  onNavigate: (page: Page) => void;
+}
+
+
+const getStatusColor = (status: string) => {
   switch (normalizeEmployment(status)) {
     case "joined":
       return "bg-green-100 text-green-800";
@@ -101,7 +107,10 @@ const getVerificationIcon = (isVerified) => {
   );
 };
 
-const PlacementAnalyticsDashboard = () => {
+
+
+const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
+
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState("all");
@@ -121,7 +130,7 @@ const PlacementAnalyticsDashboard = () => {
       setLoading(true);
       try {
         const response = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/students?limit=all`
+          `${import.meta.env.VITE_APP_API_URL}/api/students?limit=all`
         );
         if (response.data?.success && response.data?.students) {
           setStudents(response.data.students);

@@ -23,8 +23,10 @@ import {
   Star,
 } from "lucide-react";
 
+type Page = "home" | "submit" | "verify" | "stats";
+
 interface HomeProps {
-  onNavigate: (page: string) => void;
+  onNavigate: (page: Page) => void;
 }
 
 export function Home({ onNavigate }: HomeProps) {

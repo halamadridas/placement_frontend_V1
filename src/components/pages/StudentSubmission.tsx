@@ -2,9 +2,10 @@ import React from 'react';
 import { StudentForm } from '../forms/StudentForm';
 import { Button } from '../ui/button';
 import { ArrowLeft, User } from 'lucide-react';
+type Page = "home" | "submit" | "verify" | "stats";
 
 interface StudentSubmissionProps {
-  onNavigate: (page: string) => void;
+  onNavigate: (page: Page) => void;
 }
 
 export function StudentSubmission({ onNavigate }: StudentSubmissionProps) {

@@ -3,8 +3,10 @@ import { RecruiterForm } from '../forms/RecruiterForm';
 import { Button } from '../ui/button';
 import { ArrowLeft, Building2 } from 'lucide-react';
 
+type Page = "home" | "submit" | "verify" | "stats";
+
 interface RecruiterVerificationProps {
-  onNavigate: (page: string) => void;
+  onNavigate: (page: Page ) => void;
 }
 
 export function RecruiterVerification({ onNavigate }: RecruiterVerificationProps) {
