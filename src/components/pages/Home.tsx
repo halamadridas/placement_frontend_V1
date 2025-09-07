@@ -52,7 +52,7 @@ export function Home({ onNavigate }: HomeProps) {
             className="flex items-center gap-2"
           >
             <User className="h-5 w-5" />
-            Placement Form – Student Here
+            Student Form
             <ArrowRight className="h-4 w-4" />
           </Button>
           <Button
@@ -62,7 +62,7 @@ export function Home({ onNavigate }: HomeProps) {
             className="flex items-center gap-2"
           >
             <Building2 className="h-5 w-5" />
-            Verify Students (For Recruiters)
+            Recruiter Form
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
