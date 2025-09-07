@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-// @ts-ignore
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import {
@@ -35,6 +34,15 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
   Loader2,
   Download,
   BarChart3,
@@ -53,6 +61,10 @@ import {
   Clock,
   ArrowUpDown,
   FileText,
+  Lock,
+  Eye,
+  EyeOff,
+  Shield,
 } from "lucide-react";
 import axios from "axios";
 
@@ -68,7 +80,9 @@ ChartJS.register(
   PointElement
 );
 
-const normalizeEmployment = (raw: string) => {
+const CORRECT_PASSWORD = "1234";
+
+const normalizeEmployment = (raw) => {
   if (!raw) return "unknown";
   const s = String(raw).toLowerCase().trim();
   if (["joined", "working", "still_working", "active"].includes(s))
@@ -78,14 +92,8 @@ const normalizeEmployment = (raw: string) => {
   if (["pending"].includes(s)) return "pending";
   return "unknown";
 };
-type Page = "home" | "submit" | "verify" | "stats";
 
-interface CompanyStatsProps {
-  onNavigate: (page: Page) => void;
-}
-
-
-const getStatusColor = (status: string) => {
+const getStatusColor = (status) => {
   switch (normalizeEmployment(status)) {
     case "joined":
       return "bg-green-100 text-green-800";
@@ -100,7 +108,7 @@ const getStatusColor = (status: string) => {
   }
 };
 
-const getVerificationIcon = (isVerified?: boolean) => {
+const getVerificationIcon = (isVerified) => {
   return isVerified ? (
     <CheckCircle className="h-4 w-4 text-green-500" />
   ) : (
@@ -108,12 +116,120 @@ const getVerificationIcon = (isVerified?: boolean) => {
   );
 };
 
+const PasswordDialog = ({ isOpen, onPasswordCorrect }) => {
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
 
-const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
+    // Simulate loading for better UX
+    setTimeout(() => {
+      if (password === CORRECT_PASSWORD) {
+        onPasswordCorrect();
+        setPassword("");
+      } else {
+        setError("Incorrect password. Please try again.");
+      }
+      setIsLoading(false);
+    }, 500);
+  };
 
+  const handlePasswordChange = (e) => {
+    setPassword(e.target.value);
+    if (error) setError("");
+  };
+
+  return (
+    <Dialog defaultOpen={{}} open={isOpen} onOpenChange={() => {}} >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-blue-600" />
+            Access Protected Content
+          </DialogTitle>
+          <DialogDescription>
+            This dashboard contains sensitive placement data. Please enter the
+            administrator password to continue.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="password" className="text-sm font-medium">
+              Password
+            </label>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={handlePasswordChange}
+                placeholder="Enter administrator password"
+                className="pr-10"
+                disabled={isLoading}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={isLoading}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4 text-gray-400" />
+                ) : (
+                  <Eye className="h-4 w-4 text-gray-400" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {error && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="submit"
+              disabled={!password || isLoading}
+              className="w-full"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                <>
+                  <Lock className="mr-2 h-4 w-4" />
+                  Access Dashboard
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+
+        <div className="text-xs text-center text-gray-500 mt-4">
+          Only authorized personnel can access placement statistics
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const CompanyStats = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState("all");
   const [selectedCourse, setSelectedCourse] = useState("all");
   const [selectedBatch, setSelectedBatch] = useState("all");
@@ -126,37 +242,159 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   const [itemsPerPage] = useState(10);
   const dashboardRef = useRef(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const response = await axios.get(
-          `${import.meta.env.VITE_APP_API_URL}/api/students?limit=all`
-        );
-        if (response.data?.success && response.data?.students) {
-          setStudents(response.data.students);
+  // Mock data since we can't make actual API calls in this environment
+  const mockStudents = [
+    {
+      _id: "1",
+      name: "John Smith",
+      registrationNumber: "CS2021001",
+      course: "Computer Science",
+      batchStartYear: 2021,
+      batchEndYear: 2025,
+      isPlaced: true,
+      company: "TechCorp",
+      package: 8.5,
+      employmentStatus: "joined",
+      isVerified: true,
+      recruiterRating: 4.5,
+      studentFeedback: "Great experience",
+      recruiterFeedback: "Excellent performer",
+      submittedAt: new Date().toISOString(),
+      verifiedAt: new Date().toISOString(),
+    },
+    {
+      _id: "2",
+      name: "Sarah Johnson",
+      registrationNumber: "ME2021002",
+      course: "Mechanical Engineering",
+      batchStartYear: 2021,
+      batchEndYear: 2025,
+      isPlaced: true,
+      company: "AutoMotive Inc",
+      package: 6.5,
+      employmentStatus: "joined",
+      isVerified: true,
+      recruiterRating: 4.2,
+      studentFeedback: "Good learning opportunity",
+      recruiterFeedback: "Strong technical skills",
+      submittedAt: new Date().toISOString(),
+      verifiedAt: new Date().toISOString(),
+    },
+    {
+      _id: "3",
+      name: "Mike Wilson",
+      registrationNumber: "ECE2021003",
+      course: "Electronics & Communication",
+      batchStartYear: 2021,
+      batchEndYear: 2025,
+      isPlaced: false,
+      company: null,
+      package: null,
+      employmentStatus: "pending",
+      isVerified: false,
+      recruiterRating: null,
+      studentFeedback: null,
+      recruiterFeedback: null,
+      submittedAt: new Date().toISOString(),
+      verifiedAt: null,
+    },
+    {
+      _id: "4",
+      name: "Emily Davis",
+      registrationNumber: "CS2020001",
+      course: "Computer Science",
+      batchStartYear: 2020,
+      batchEndYear: 2024,
+      isPlaced: true,
+      company: "DataSys",
+      package: 12.0,
+      employmentStatus: "left",
+      isVerified: true,
+      recruiterRating: 4.8,
+      studentFeedback: "Challenging work environment",
+      recruiterFeedback: "Top performer",
+      submittedAt: new Date().toISOString(),
+      verifiedAt: new Date().toISOString(),
+    },
+    {
+      _id: "5",
+      name: "Alex Brown",
+      registrationNumber: "IT2021004",
+      course: "Information Technology",
+      batchStartYear: 2021,
+      batchEndYear: 2025,
+      isPlaced: true,
+      company: "CloudTech",
+      package: 9.5,
+      employmentStatus: "joined",
+      isVerified: false,
+      recruiterRating: 4.3,
+      studentFeedback: "Great team culture",
+      recruiterFeedback: "Quick learner",
+      submittedAt: new Date().toISOString(),
+      verifiedAt: null,
+    },
+  ];
+
+  const API_BASE_URL = `${import.meta.env.VITE_APP_API_URL}/api`
+
+useEffect(() => {
+    if (isAuthenticated) {
+      const fetchData = async () => {
+        setLoading(true);
+        try {
+          // Fetch all students data
+          const studentsResponse = await fetch(
+            // "http://localhost:5000/api/students?limit=infinite"
+            `${API_BASE_URL}/students?limit=infinite`
+          );
+
+          if (studentsResponse.ok) {
+            const data = await studentsResponse.json();
+            console.log("API Response:", data);
+
+            // Handle the nested response structure
+            if (data.success && data.students) {
+              setStudents(data.students);
+            } else if (Array.isArray(data)) {
+              // If the API returns array directly
+              setStudents(data);
+            } else {
+              console.error("Unexpected API response format:", data);
+              setStudents([]);
+            }
+          } else {
+            console.error("Failed to fetch students data");
+            setStudents([]);
+          }
+        } catch (error) {
+          console.error("Error fetching students data:", error);
+          setStudents([]);
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error("Error fetching students:", error);
-        // Fallback to empty array or show error message
-        setStudents([]);
-      }
-      setLoading(false);
-    };
-    fetchData();
-  }, []);
+      };
+
+      fetchData();
+    }
+  }, [isAuthenticated]);
+
+
+  const handlePasswordCorrect = () => {
+    setIsAuthenticated(true);
+  };
 
   // Get unique values for filters
   const { companies, courses, batches, employmentStatuses } = useMemo(() => {
     const companies = [
-      ...new Set(students.filter((s: any) => s.company).map((s: any) => s.company)),
+      ...new Set(students.filter((s) => s.company).map((s) => s.company)),
     ].sort();
-    const courses = [...new Set(students.filter((s: any) => s.course).map((s: any) => s.course))].sort();
-    const batches = [...new Set(students.filter((s: any) => s.batchStartYear).map((s: any) => s.batchStartYear))].sort(
+    const courses = [...new Set(students.map((s) => s.course))].sort();
+    const batches = [...new Set(students.map((s) => s.batchStartYear))].sort(
       (a, b) => b - a
     );
     const statuses = [
-      ...new Set(students.filter((s: any) => s.employmentStatus).map((s: any) => s.employmentStatus)),
+      ...new Set(students.map((s) => s.employmentStatus)),
     ].filter(Boolean);
     return { companies, courses, batches, employmentStatuses: statuses };
   }, [students]);
@@ -164,30 +402,30 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   // Filter and sort students
   const filteredAndSortedStudents = useMemo(() => {
     let filtered = students.filter((student) => {
-      if (selectedCompany !== "all" && (student as any).company !== selectedCompany)
+      if (selectedCompany !== "all" && student.company !== selectedCompany)
         return false;
-      if (selectedCourse !== "all" && (student as any).course !== selectedCourse)
+      if (selectedCourse !== "all" && student.course !== selectedCourse)
         return false;
       if (
         selectedBatch !== "all" &&
-        (student as any).batchStartYear !== parseInt(selectedBatch)
+        student.batchStartYear !== parseInt(selectedBatch)
       )
         return false;
       if (
         selectedStatus !== "all" &&
-        normalizeEmployment((student as any).employmentStatus) !== selectedStatus
+        normalizeEmployment(student.employmentStatus) !== selectedStatus
       )
         return false;
       if (selectedVerification !== "all") {
-        if (selectedVerification === "verified" && !(student as any).isVerified)
+        if (selectedVerification === "verified" && !student.isVerified)
           return false;
-        if (selectedVerification === "unverified" && (student as any).isVerified)
+        if (selectedVerification === "unverified" && student.isVerified)
           return false;
       }
       if (
         searchTerm &&
-        !(student as any).name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !(student as any).registrationNumber
+        !student.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        !student.registrationNumber
           .toLowerCase()
           .includes(searchTerm.toLowerCase())
       )
@@ -206,10 +444,8 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
       }
 
       if (typeof aValue === "string") {
-        // @ts-ignore
-        aValue = (aValue as any).toLowerCase();
-        // @ts-ignore
-        bValue = (bValue as string).toLowerCase();
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
       }
 
       if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
@@ -244,41 +480,37 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   // Calculate key metrics
   const metrics = useMemo(() => {
     const total = filteredAndSortedStudents.length;
-    const placed = filteredAndSortedStudents.filter((s: any) => s.isPlaced).length;
+    const placed = filteredAndSortedStudents.filter((s) => s.isPlaced).length;
     const verified = filteredAndSortedStudents.filter(
-      (s: any) => s.isVerified
+      (s) => s.isVerified
     ).length;
     const placementRate = total > 0 ? ((placed / total) * 100).toFixed(1) : 0;
 
     const placedStudents = filteredAndSortedStudents.filter(
-      (s: any) => s.isPlaced && s.package
-
+      (s) => s.isPlaced && s.package
     );
     const avgPackage =
       placedStudents.length > 0
         ? (
-            placedStudents.reduce((sum, s: any) => sum + (s.package || 0), 0) /
-
+            placedStudents.reduce((sum, s) => sum + (s.package || 0), 0) /
             placedStudents.length
           ).toFixed(2)
         : 0;
 
-      const ratedStudents = filteredAndSortedStudents.filter(
-      (s :any) => s.recruiterRating && s.isPlaced
-
+    const ratedStudents = filteredAndSortedStudents.filter(
+      (s) => s.recruiterRating
     );
     const avgRating =
       ratedStudents.length > 0
         ? (
-            ratedStudents.reduce((sum, s: any) => sum + s.recruiterRating, 0) /
-
+            ratedStudents.reduce((sum, s) => sum + s.recruiterRating, 0) /
             ratedStudents.length
           ).toFixed(1)
         : 0;
 
     const highestPackage =
       placedStudents.length > 0
-        ? Math.max(...placedStudents.map((s: any) => s.package || 0)).toFixed(2)
+        ? Math.max(...placedStudents.map((s) => s.package || 0)).toFixed(2)
         : 0;
 
     return {
@@ -294,10 +526,10 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
 
   // Company-wise statistics
   const companyStats = useMemo(() => {
-    const stats: any = {};
+    const stats = {};
     filteredAndSortedStudents
-      .filter((s:any) => s.isPlaced && s.company)
-      .forEach((s: any) => {
+      .filter((s) => s.isPlaced && s.company)
+      .forEach((s) => {
         if (!stats[s.company]) {
           stats[s.company] = {
             count: 0,
@@ -319,8 +551,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
       });
 
     return Object.entries(stats)
-      .map(([company, data]: any) => ({
-
+      .map(([company, data]) => ({
         company,
         count: data.count,
         avgPackage:
@@ -340,16 +571,15 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   // Course-wise statistics
   const courseStats = useMemo(() => {
     const stats = {};
-    filteredAndSortedStudents.forEach((s: any) => {
-      if (!stats[s.course as keyof typeof stats]) {
-        (stats as Record<string, { total: number; placed: number }>)[s.course] = { total: 0, placed: 0 };
+    filteredAndSortedStudents.forEach((s) => {
+      if (!stats[s.course]) {
+        stats[s.course] = { total: 0, placed: 0 };
       }
-      (stats[s.course as keyof typeof stats] as { total: number; placed: number }).total += 1;
-      if (s.isPlaced) (stats[s.course as keyof typeof stats] as { total: number; placed: number }).placed += 1;
+      stats[s.course].total += 1;
+      if (s.isPlaced) stats[s.course].placed += 1;
     });
 
-    return Object.entries(stats).map(([course, data]: any) => ({
-
+    return Object.entries(stats).map(([course, data]) => ({
       course,
       total: data.total,
       placed: data.placed,
@@ -360,8 +590,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   // Employment status distribution
   const employmentStats = useMemo(() => {
     const stats = { joined: 0, left: 0, not_joined: 0, pending: 0, unknown: 0 };
-    filteredAndSortedStudents.forEach((s: any) => {
-
+    filteredAndSortedStudents.forEach((s) => {
       const status = normalizeEmployment(s.employmentStatus);
       stats[status] = (stats[status] || 0) + 1;
     });
@@ -370,8 +599,8 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
 
   // Batch-wise placement trends
   const batchStats = useMemo(() => {
-    const stats: any = {};
-    filteredAndSortedStudents.forEach((s: any) => {
+    const stats = {};
+    filteredAndSortedStudents.forEach((s) => {
       const year = s.batchEndYear || s.batchStartYear + 4;
       if (!stats[year]) {
         stats[year] = { total: 0, placed: 0 };
@@ -381,7 +610,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
     });
 
     return Object.entries(stats)
-      .map(([year, data]: any) => ({
+      .map(([year, data]) => ({
         year: parseInt(year),
         total: data.total,
         placed: data.placed,
@@ -405,7 +634,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   };
 
   const employmentPieData = {
-    labels: ["Joined", "Left Company", "Not Joined", "Pending", "Unknown"],
+    labels: ["Joined", "Left Company", "Not Joined", "Pending"],
     datasets: [
       {
         data: [
@@ -468,19 +697,18 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
     datasets: [
       {
         data: [
-          filteredAndSortedStudents.filter((s : any) => s.package && s.package < 3)
-
+          filteredAndSortedStudents.filter((s) => s.package && s.package < 3)
             .length,
           filteredAndSortedStudents.filter(
-            (s : any) => s.package && s.package >= 3 && s.package < 5
+            (s) => s.package && s.package >= 3 && s.package < 5
           ).length,
           filteredAndSortedStudents.filter(
-            (s : any) => s.package && s.package >= 5 && s.package < 8
+            (s) => s.package && s.package >= 5 && s.package < 8
           ).length,
           filteredAndSortedStudents.filter(
-            (s : any) => s.package && s.package >= 8 && s.package < 12
+            (s) => s.package && s.package >= 8 && s.package < 12
           ).length,
-          filteredAndSortedStudents.filter((s : any) => s.package && s.package >= 12)
+          filteredAndSortedStudents.filter((s) => s.package && s.package >= 12)
             .length,
         ],
         backgroundColor: [
@@ -514,8 +742,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
     },
   };
 
-  const handleSort = (field : any) => {
-
+  const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
@@ -535,8 +762,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
   };
 
   const handleExportExcel = () => {
-    const exportData = filteredAndSortedStudents.map((s: any) => ({
-
+    const exportData = filteredAndSortedStudents.map((s) => ({
       Name: s.name,
       "Registration Number": s.registrationNumber,
       Course: s.course,
@@ -584,13 +810,33 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
     const data = new Blob([excelBuffer], { type: "application/octet-stream" });
     saveAs(
       data,
-      `placement_analytics_${new Date().toISOString().split("T")[0]}.xlsx`
+      'placement_analytics_${new Date().toISOString().split("T")[0]}.xlsx'
     );
   };
 
   const handlePrintReport = () => {
     window.print();
   };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setStudents([]);
+    // Reset all filters and states
+    setSelectedCompany("all");
+    setSelectedCourse("all");
+    setSelectedBatch("all");
+    setSelectedStatus("all");
+    setSelectedVerification("all");
+    setSearchTerm("");
+    setCurrentPage(1);
+  };
+
+  // Show password dialog if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <PasswordDialog isOpen={true} onPasswordCorrect={handlePasswordCorrect} />
+    );
+  }
 
   if (loading) {
     return (
@@ -610,12 +856,25 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
               <BarChart3 className="h-8 w-8 text-blue-600" />
               Placement Analytics Dashboard
+              <Badge
+                variant="secondary"
+                className="ml-2 bg-green-100 text-green-800"
+              >
+                Authenticated
+              </Badge>
             </h1>
             <p className="text-gray-600 mt-1">
               Comprehensive placement statistics and insights
             </p>
           </div>
           <div className="flex gap-2">
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              className="flex gap-2"
+            >
+              <Lock className="h-4 w-4" /> Logout
+            </Button>
             <Button
               onClick={handlePrintReport}
               variant="outline"
@@ -879,15 +1138,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              <Bar data={companyChartData} options={{
-                ...chartOptions,
-                plugins: {
-                  ...chartOptions.plugins,
-                  legend: {
-                    position: 'top' as const
-                  }
-                }
-              }} />
+              <Bar data={companyChartData} options={chartOptions} />
             </div>
           </CardContent>
         </Card>
@@ -911,15 +1162,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              <Bar data={coursePlacementData} options={{
-                ...chartOptions,
-                plugins: {
-                  ...chartOptions.plugins,
-                  legend: {
-                    position: 'top' as const
-                  }
-                }
-              }} />
+              <Bar data={coursePlacementData} options={chartOptions} />
             </div>
           </CardContent>
         </Card>
@@ -943,15 +1186,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              <Line data={batchTrendData} options={{
-                ...chartOptions,
-                plugins: {
-                  ...chartOptions.plugins,
-                  legend: {
-                    position: 'top' as const
-                  }
-                }
-              }} />
+              <Line data={batchTrendData} options={chartOptions} />
             </div>
           </CardContent>
         </Card>
@@ -987,12 +1222,12 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
                     <TableCell className="text-right">
                       {company.count}
                     </TableCell>
-                    <TableCell className="text-right">
-                      ₹{company.avgPackage}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ₹{company.maxPackage}
-                    </TableCell>
+          <TableCell className="text-right">
+            &#8377;{company.avgPackage}
+          </TableCell>
+          <TableCell className="text-right">
+            &#8377;{company.maxPackage}
+          </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         {company.avgRating}
@@ -1133,7 +1368,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedStudents.map((student : any) => (
+                {paginatedStudents.map((student) => (
                   <TableRow key={student._id}>
                     <TableCell className="font-medium">
                       {student.name}
@@ -1317,7 +1552,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
             <div>
               <h4 className="font-semibold mb-3 text-green-600">Strengths</h4>
               <ul className="space-y-2 text-sm">
-                {parseFloat(String(metrics.placementRate)) >= 70 && (
+                {parseFloat(metrics.placementRate) >= 70 && (
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-green-500" />
                     Strong overall placement rate of {metrics.placementRate}%
@@ -1330,14 +1565,13 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
                     recruiting companies
                   </li>
                 )}
-                {parseFloat(String(metrics.avgPackage)) >= 5 && (
-
+                {parseFloat(metrics.avgPackage) >= 5 && (
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-green-500" />
                     Competitive average package of ₹{metrics.avgPackage} LPA
                   </li>
                 )}
-                {parseFloat(String(metrics.avgRating)) >= 4 && (
+                {parseFloat(metrics.avgRating) >= 4 && (
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-green-500" />
                     High employer satisfaction with average rating of{" "}
@@ -1352,7 +1586,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
                 Areas for Improvement
               </h4>
               <ul className="space-y-2 text-sm">
-                {parseFloat(String(metrics.placementRate)) < 70 && (
+                {parseFloat(metrics.placementRate) < 70 && (
                   <li className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-orange-500" />
                     Focus on improving placement rate (currently{" "}
@@ -1384,7 +1618,7 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
       </Card>
 
       {/* Print styles */}
-      <style>{`
+      <style jsx global>{`
         @media print {
           body {
             print-color-adjust: exact;
@@ -1401,5 +1635,5 @@ const PlacementAnalyticsDashboard = ({ onNavigate }: CompanyStatsProps) => {
     </div>
   );
 };
-
-export default PlacementAnalyticsDashboard;
+ 
+export default CompanyStats;
